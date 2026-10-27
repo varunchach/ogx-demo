@@ -1,0 +1,177 @@
+# OGXServer for lab — same customer pattern:
+#   MaaS LLM (granite via cluster MaaS gateway / LiteLLM ExternalModel)
+#   Inline embedding provider (sentence-transformers) — swap to remote BGE when MaaS BGE exists
+#   Remote pgvector (01-pgvector.yaml)
+#
+# Secrets must have label ogx.io/watch: "true"
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ogx-rag-config
+  namespace: models-as-a-service
+  labels:
+    ogx.io/watch: "true"
+data:
+  config.yaml: |
+    version: "2"
+    distro_name: rh
+    apis:
+      - responses
+      - file_processors
+      - files
+      - inference
+      - tool_runtime
+      - vector_io
+    providers:
+      inference:
+        - provider_id: sentence-transformers
+          provider_type: inline::sentence-transformers
+          config:
+            trust_remote_code: false
+        - provider_id: maas-openai
+          provider_type: remote::openai
+          config:
+            api_key: ${env.MAAS_API_KEY:=}
+            base_url: ${env.MAAS_BASE_URL:=https://maas.apps.ocp.lw97d.sandbox1049.opentlc.com/v1}
+      vector_io:
+        - provider_id: pgvector
+          provider_type: remote::pgvector
+          config:
+            db: ${env.PGVECTOR_DB:=vectordb}
+            distance_metric: COSINE
+            host: ${env.PGVECTOR_HOST}
+            password: ${env.PGVECTOR_PASSWORD:=}
+            port: ${env.PGVECTOR_PORT:=5432}
+            user: ${env.PGVECTOR_USER:=vectoruser}
+            persistence:
+              backend: kv_default
+              namespace: vector_io::pgvector
+      responses:
+        - provider_id: builtin
+          provider_type: inline::builtin
+          config:
+            persistence:
+              responses:
+                backend: sql_default
+                max_write_queue_size: 10000
+                num_writers: 4
+                table_name: responses
+      file_processors:
+        - provider_id: pypdf
+          provider_type: inline::pypdf
+          config: {}
+      files:
+        - provider_id: localfs-files
+          provider_type: inline::localfs
+          config:
+            metadata_store:
+              backend: sql_default
+              table_name: files_metadata
+            storage_dir: /opt/app-root/src/.llama/distributions/rh/files
+      tool_runtime:
+        - provider_id: file-search
+          provider_type: inline::file-search
+          config: {}
+    metadata_store:
+      type: sqlite
+      db_path: /opt/app-root/src/.llama/distributions/rh/inference_store.db
+    storage:
+      backends:
+        kv_default:
+          db_path: /opt/app-root/src/.llama/distributions/rh/kvstore.db
+          type: kv_sqlite
+        sql_default:
+          db_path: /opt/app-root/src/.llama/distributions/rh/sql_store.db
+          type: sql_sqlite
+      stores:
+        conversations:
+          backend: sql_default
+          table_name: openai_conversations
+        inference:
+          backend: sql_default
+          max_write_queue_size: 10000
+          num_writers: 4
+          table_name: inference_store
+        metadata:
+          backend: kv_default
+          namespace: registry
+    vector_stores:
+      default_provider_id: pgvector
+      default_embedding_model:
+        provider_id: sentence-transformers
+        model_id: ibm-granite/granite-embedding-125m-english
+      file_ingestion_params:
+        default_chunk_overlap_tokens: 128
+        default_chunk_size_tokens: 512
+      chunk_retrieval_params:
+        default_search_mode: vector
+        max_tokens_in_context: 4000
+    registered_resources:
+      models:
+        - provider_id: sentence-transformers
+          model_id: sentence-transformers/ibm-granite/granite-embedding-125m-english
+          provider_model_id: ibm-granite/granite-embedding-125m-english
+          model_type: embedding
+          metadata:
+            embedding_dimension: 768
+        - provider_id: maas-openai
+          model_id: granite-3-2-8b-instruct
+          model_type: llm
+          metadata:
+            display_name: granite-3-2-8b-instruct
+      vector_stores: []
+    server:
+      port: 8321
+---
+apiVersion: ogx.io/v1beta1
+kind: OGXServer
+metadata:
+  name: lsd-genai-playground
+  namespace: models-as-a-service
+  labels:
+    opendatahub.io/dashboard: "true"
+    app.kubernetes.io/part-of: ogx-chatbot-lab
+spec:
+  distribution:
+    name: rh
+  network:
+    port: 8321
+  overrideConfig:
+    key: config.yaml
+    name: ogx-rag-config
+  workload:
+    overrides:
+      env:
+        # LiteLLM ExternalProvider (granite). Prefer dashboard MaaS API key → gateway on customer.
+        - name: MAAS_BASE_URL
+          value: https://maas-rhdp.apps.maas.redhatworkshops.io/v1
+        - name: MAAS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: maas-llm-api-key
+              key: api-key
+        - name: PGVECTOR_HOST
+          value: genai-pgvector.models-as-a-service.svc.cluster.local
+        - name: PGVECTOR_PORT
+          value: "5432"
+        - name: PGVECTOR_DB
+          value: vectordb
+        - name: PGVECTOR_USER
+          value: vectoruser
+        - name: PGVECTOR_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: genai-pgvector-credentials
+              key: password
+        - name: HF_HUB_OFFLINE
+          value: "0"
+        - name: TRANSFORMERS_OFFLINE
+          value: "0"
+      replicas: 1
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          cpu: "2"
+          memory: 12Gi

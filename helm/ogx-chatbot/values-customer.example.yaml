@@ -1,0 +1,52 @@
+# Copy to values-customer.yaml and fill in for the client cluster.
+#   cp values-customer.example.yaml values-customer.yaml
+#   helm upgrade --install ogx-chatbot ./helm/ogx-chatbot -n ogx-demo -f values-customer.yaml
+
+namespace:
+  create: true
+  name: ogx-demo
+  labels:
+    opendatahub.io/dashboard: "true"
+
+image:
+  repository: quay.io/vraste/ogx-chatbot
+  tag: "1.4.20"
+
+imagePullSecrets: []
+
+config:
+  ogx:
+    baseUrl: "http://<ogxserver-svc>.ogx-demo.svc.cluster.local:8321"
+    apiKey: ""
+    model: "maas-openai/<your-llm>"
+    embeddingModel: "<exact-id-from-v1-models>"
+    vectorStoreName: "ogx-rag-demo"
+    vectorProviderId: "pgvector"
+  otel:
+    endpoint: "http://data-science-collector-collector.redhat-ods-monitoring.svc.cluster.local:4318"
+    protocol: "http/protobuf"
+    serviceName: "ogx-chatbot-api"
+  mlflow:
+    trackingUri: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"
+    insecureTls: "true"
+    experimentName: "ogx-chatbot"
+    workspace: "ogx-demo"
+  evalhub:
+    # oc get route evalhub -n <ns> -o jsonpath='https://{.spec.host}'
+    baseUrl: "https://evalhub-ogx-demo.apps.example.com"
+    apiToken: ""
+    providers: "ragas,lm-evaluation-harness,garak"
+  ragEval:
+    onChat: "true"
+    requireContexts: "true"
+  # Standalone NeMo Guardrails — checks BEFORE OGX (do not point OGX_BASE_URL here)
+  guardrails:
+    enabled: "true"
+    baseUrl: "https://nemo-standalone-ogx-demo.apps.ocp-dwh-np.bajajlife.com"
+    apiToken: ""   # optional
+    insecureTls: "true"
+    timeoutSeconds: "60"
+
+tempoRbac:
+  enabled: true
+  tenant: redhat-ods-monitoring

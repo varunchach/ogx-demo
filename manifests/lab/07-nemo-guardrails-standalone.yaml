@@ -1,0 +1,52 @@
+# Official RHOAI 3.5 NeMo Guardrails standalone quick start (no LLM).
+# Docs: Enabling AI safety with NeMo Guardrails §1.1
+# Endpoint: https://<route>/v1/guardrail/checks
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nemo-quickstart
+  labels:
+    opendatahub.io/dashboard: "true"
+    app.kubernetes.io/part-of: nemo-guardrails-standalone
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nemo-quickstart-config
+  namespace: nemo-quickstart
+data:
+  config.yaml: |
+    rails:
+      config:
+        sensitive_data_detection:
+          input:
+            entities:
+              - EMAIL_ADDRESS
+              - PERSON
+              - PHONE_NUMBER
+        regex_detection:
+          input:
+            patterns:
+              - "\\b(password|secret|api[_-]?key|token)\\b"
+              - "\\d{3}-\\d{2}-\\d{4}"
+            case_insensitive: true
+      input:
+        flows:
+          - detect sensitive data on input
+          - regex check input
+  rails.co: |
+    # Using built-in rails only — no LLM / MaaS
+---
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: NemoGuardrails
+metadata:
+  name: nemo-quickstart
+  namespace: nemo-quickstart
+  annotations:
+    security.opendatahub.io/enable-auth: "true"
+spec:
+  nemoConfigs:
+    - name: nemo-quickstart-config
+      configMaps:
+        - nemo-quickstart-config

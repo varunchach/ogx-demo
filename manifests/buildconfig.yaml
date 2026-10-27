@@ -1,0 +1,36 @@
+# OpenShift cluster build → Quay (OpenShift AI 3.5 customer / lab).
+#
+#   oc create secret docker-registry quay-creds \
+#     --docker-server=quay.io \
+#     --docker-username='<user>' \
+#     --docker-password='<token>' \
+#     --docker-email=unused@example.com \
+#     -n <demo-ns>
+#
+#   oc apply -f manifests/buildconfig.yaml -n <demo-ns>
+#   oc start-build ogx-chatbot --from-dir=. --follow -n <demo-ns>
+#
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: ogx-chatbot
+  labels:
+    app.kubernetes.io/part-of: ogx-chatbot
+spec:
+  failedBuildsHistoryLimit: 2
+  successfulBuildsHistoryLimit: 3
+  runPolicy: Serial
+  source:
+    type: Binary
+    binary: {}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: DockerImage
+      name: quay.io/vraste/ogx-chatbot:1.4.20
+    pushSecret:
+      name: quay-creds
+  triggers: []

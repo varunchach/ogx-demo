@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ogx-chatbot
+  labels:
+    app: ogx-chatbot
+spec:
+  selector:
+    app: ogx-chatbot
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ogx-chatbot
+  labels:
+    app: ogx-chatbot
+spec:
+  to:
+    kind: Service
+    name: ogx-chatbot
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

@@ -1,0 +1,145 @@
+# =============================================================================
+# Fuse-in deploy for OpenShift AI 3.5 customer environments
+# =============================================================================
+# 1) Replace EVERY REPLACE_* value and confirm the Quay image.
+# 2) Platform must already have: OgxServer+MaaS (+BGE embed), MLflow, EvalHub
+#    (redhat-ods-applications), Tempo/data-science-collector.
+# 3) RAG goes through OGX Files + Vector Stores only — no PGVECTOR_* secrets.
+# 4) This file deploys ONLY the chatbot app.
+#
+#   oc apply -f manifests/app.yaml -n <demo-ns>
+# =============================================================================
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ogx-chatbot-secrets
+  labels:
+    app: ogx-chatbot
+type: Opaque
+stringData:
+  # --- OgxServer (dashboard) + MaaS chat/embed ---
+  OGX_BASE_URL: "http://REPLACE_OGX_SERVICE.REPLACE_NS.svc.cluster.local:8321"
+  OGX_API_KEY: "REPLACE_TOKEN"
+  OGX_MODEL: "REPLACE_CHAT_MODEL"
+  OGX_EMBEDDING_MODEL: "REPLACE_BGE_OR_OGX_EMBED_MODEL"
+  OGX_VECTOR_STORE_NAME: "ogx-rag-demo"
+  OGX_VECTOR_PROVIDER_ID: "pgvector"
+  # Optional: pin an existing store instead of create-by-name
+  # OGX_VECTOR_STORE_ID: ""
+  OGX_TIMEOUT_SECONDS: "180"
+  CHUNK_SIZE_TOKENS: "512"
+  CHUNK_OVERLAP_TOKENS: "128"
+
+  # --- Tempo via RHOAI monitoring collector ---
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://data-science-collector-collector.redhat-ods-monitoring.svc.cluster.local:4318"
+  OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+  OTEL_SERVICE_NAME: "ogx-chatbot-api"
+
+  # --- MLflow operator (redhat-ods-applications) ---
+  MLFLOW_TRACKING_URI: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"
+  MLFLOW_TRACKING_INSECURE_TLS: "true"
+  MLFLOW_EXPERIMENT_NAME: "ogx-chatbot"
+  MLFLOW_WORKSPACE: "REPLACE_PROJECT"
+
+  # --- EvalHub CR in redhat-ods-applications ONLY ---
+  EVALHUB_BASE_URL: "https://evalhub-redhat-ods-applications.apps.REPLACE_CLUSTER"
+  EVALHUB_API_TOKEN: ""
+  EVALHUB_PROVIDERS: "ragas,lm-evaluation-harness,garak"
+  # Live reference-free RAGAS-style metrics (OGX judge) — EvalHub is batch-only
+  RAG_EVAL_ON_CHAT: "true"
+  RAG_EVAL_REQUIRE_CONTEXTS: "true"
+
+  # --- Standalone NeMo Guardrails (checks BEFORE OGX; not a MaaS swap) ---
+  GUARDRAILS_ENABLED: "true"
+  GUARDRAILS_BASE_URL: "https://nemo-standalone-ogx-demo.apps.ocp-dwh-np.bajajlife.com"
+  # Optional — leave empty unless NeMo Route requires Bearer
+  GUARDRAILS_API_TOKEN: ""
+  GUARDRAILS_INSECURE_TLS: "true"
+  GUARDRAILS_TIMEOUT_SECONDS: "60"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ogx-chatbot
+  labels:
+    app: ogx-chatbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ogx-chatbot
+  template:
+    metadata:
+      labels:
+        app: ogx-chatbot
+    spec:
+      imagePullSecrets:
+        - name: quay-creds
+      containers:
+        - name: app
+          image: quay.io/vraste/ogx-chatbot:1.4.20
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: PYTHONPATH
+              value: /opt/app-root/src
+          envFrom:
+            - secretRef:
+                name: ogx-chatbot-secrets
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            # /readyz only — never /health (that calls OGX file_count).
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ogx-chatbot
+  labels:
+    app: ogx-chatbot
+spec:
+  selector:
+    app: ogx-chatbot
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ogx-chatbot
+  labels:
+    app: ogx-chatbot
+spec:
+  to:
+    kind: Service
+    name: ogx-chatbot
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

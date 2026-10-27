@@ -1,0 +1,30 @@
+[
+  {
+    "op": "add",
+    "path": "/spec/template/spec/volumes",
+    "value": [
+      {
+        "name": "code-fix",
+        "configMap": {
+          "name": "ogx-chatbot-code-fix"
+        }
+      }
+    ]
+  },
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/volumeMounts",
+    "value": [
+      {
+        "name": "code-fix",
+        "mountPath": "/opt/app-root/src/src/ogx_client.py",
+        "subPath": "ogx_client.py"
+      },
+      {
+        "name": "code-fix",
+        "mountPath": "/opt/app-root/src/src/mlflow_logger.py",
+        "subPath": "mlflow_logger.py"
+      }
+    ]
+  }
+]

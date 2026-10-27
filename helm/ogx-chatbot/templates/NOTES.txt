@@ -1,0 +1,16 @@
+OGX RAG Chatbot installed (app only).
+
+  Namespace: {{ include "ogx-chatbot.namespace" . }}
+  Image:     {{ .Values.image.repository }}:{{ .Values.image.tag }}
+
+Get the UI URL:
+  oc get route {{ include "ogx-chatbot.fullname" . }} -n {{ include "ogx-chatbot.namespace" . }} \
+    -o jsonpath='https://{.spec.host}{"\n"}'
+
+Tempo (Observe → Traces):
+  { name = "POST /chat" }  ·  service {{ .Values.config.otel.serviceName }}
+
+MLflow:
+  Experiment {{ .Values.config.mlflow.experimentName }} · workspace {{ .Values.config.mlflow.workspace }}
+
+Platform prerequisites (not installed by this chart): OgxServer, MaaS models, MLflow, Tempo collector, EvalHub.

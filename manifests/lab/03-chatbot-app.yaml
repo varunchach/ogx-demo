@@ -1,0 +1,130 @@
+# Lab deploy of ogx-chatbot against this cluster's OGX + MLflow + EvalHub
+# Prerequisite: namespace labeled opendatahub.io/dashboard=true (MLflow workspace).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ogx-chatbot-mlflow-admin
+  namespace: models-as-a-service
+  labels:
+    app: ogx-chatbot
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: models-as-a-service
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ogx-chatbot-secrets
+  namespace: models-as-a-service
+  labels:
+    app: ogx-chatbot
+type: Opaque
+stringData:
+  OGX_BASE_URL: "http://lsd-genai-playground-service.models-as-a-service.svc.cluster.local:8321"
+  OGX_API_KEY: ""
+  OGX_MODEL: "maas-openai/granite-3-2-8b-instruct"
+  OGX_EMBEDDING_MODEL: "sentence-transformers/ibm-granite/granite-embedding-125m-english"
+  OGX_VECTOR_STORE_NAME: "ogx-rag-demo"
+  OGX_VECTOR_PROVIDER_ID: "pgvector"
+  OGX_TIMEOUT_SECONDS: "180"
+  CHUNK_SIZE_TOKENS: "512"
+  CHUNK_OVERLAP_TOKENS: "128"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://data-science-collector-collector.redhat-ods-monitoring.svc.cluster.local:4318"
+  OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+  OTEL_SERVICE_NAME: "ogx-chatbot-api"
+  MLFLOW_TRACKING_URI: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"
+  MLFLOW_TRACKING_INSECURE_TLS: "true"
+  MLFLOW_EXPERIMENT_NAME: "ogx-chatbot"
+  MLFLOW_WORKSPACE: "models-as-a-service"
+  EVALHUB_BASE_URL: "https://evalhub-redhat-ods-applications.apps.ocp.lw97d.sandbox1049.opentlc.com"
+  EVALHUB_API_TOKEN: ""
+  EVALHUB_PROVIDERS: "ragas,lm-evaluation-harness,garak"
+  # Standalone NeMo — set GUARDRAILS_BASE_URL to the NemoGuardrails Route host
+  GUARDRAILS_ENABLED: "false"
+  GUARDRAILS_BASE_URL: ""
+  GUARDRAILS_API_TOKEN: ""
+  GUARDRAILS_INSECURE_TLS: "true"
+  GUARDRAILS_TIMEOUT_SECONDS: "60"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ogx-chatbot
+  namespace: models-as-a-service
+  labels:
+    app: ogx-chatbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ogx-chatbot
+  template:
+    metadata:
+      labels:
+        app: ogx-chatbot
+    spec:
+      imagePullSecrets:
+        - name: quay-creds
+      containers:
+        - name: app
+          image: quay.io/vraste/ogx-chatbot:1.3.0
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: PYTHONPATH
+              value: /opt/app-root/src
+          envFrom:
+            - secretRef:
+                name: ogx-chatbot-secrets
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ogx-chatbot
+  namespace: models-as-a-service
+  labels:
+    app: ogx-chatbot
+spec:
+  selector:
+    app: ogx-chatbot
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ogx-chatbot
+  namespace: models-as-a-service
+  labels:
+    app: ogx-chatbot
+spec:
+  to:
+    kind: Service
+    name: ogx-chatbot
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

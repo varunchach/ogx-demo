@@ -1,0 +1,85 @@
+# Lab prerequisite for OGX RAG (OCP AI 3.5 docs): provision Postgres+pgvector.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: genai-pgvector-credentials
+  namespace: models-as-a-service
+  labels:
+    ogx.io/watch: "true"
+    app: genai-pgvector
+type: Opaque
+stringData:
+  password: "CHANGE_ME"
+  PGVECTOR_PASSWORD: "OgxPgVectorLab2026!"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: genai-pgvector
+  namespace: models-as-a-service
+  labels:
+    app: genai-pgvector
+    gen-ai.opendatahub.io/pgvector: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: genai-pgvector
+  template:
+    metadata:
+      labels:
+        app: genai-pgvector
+        gen-ai.opendatahub.io/pgvector: "true"
+    spec:
+      containers:
+        - name: pgvector
+          image: pgvector/pgvector:pg16
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              value: vectordb
+            - name: POSTGRES_USER
+              value: vectoruser
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: genai-pgvector-credentials
+                  key: password
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "vectoruser", "-d", "vectordb"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: genai-pgvector
+  namespace: models-as-a-service
+  labels:
+    app: genai-pgvector
+    gen-ai.opendatahub.io/pgvector: "true"
+spec:
+  selector:
+    app: genai-pgvector
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

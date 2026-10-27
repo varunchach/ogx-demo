@@ -1,0 +1,17 @@
+{{- if .Values.mlflowRbac.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "ogx-chatbot.fullname" . }}-mlflow-admin
+  namespace: {{ include "ogx-chatbot.namespace" . }}
+  labels:
+    {{- include "ogx-chatbot.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Values.mlflowRbac.clusterRole }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "ogx-chatbot.serviceAccountName" . }}
+    namespace: {{ include "ogx-chatbot.namespace" . }}
+{{- end }}

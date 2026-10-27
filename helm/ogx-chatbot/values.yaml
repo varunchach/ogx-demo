@@ -1,0 +1,96 @@
+# OGX RAG Chatbot — Helm values (edit for customer cluster)
+# Installs ONLY the app. Enable OGX / MaaS / MLflow / Tempo / EvalHub via RHOAI dashboard first.
+
+nameOverride: ""
+fullnameOverride: "ogx-chatbot"
+
+# Create/label namespace (set false if project already exists)
+namespace:
+  create: true
+  name: models-as-a-service
+  labels:
+    opendatahub.io/dashboard: "true"
+
+image:
+  repository: quay.io/vraste/ogx-chatbot
+  tag: "1.4.20"
+  pullPolicy: Always
+
+# Public Quay image — leave empty. Add only if you switch to a private registry.
+imagePullSecrets: []
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  name: ogx-chatbot
+
+# Grant SA admin in the project so MLflow workspace writes succeed
+mlflowRbac:
+  enabled: true
+  clusterRole: admin
+
+# Cluster-scoped Tempo RBAC for RHOAI data-science collector + console read
+tempoRbac:
+  enabled: true
+  tenant: redhat-ods-monitoring
+  collectorServiceAccount: data-science-collector-collector
+  collectorNamespace: redhat-ods-monitoring
+
+service:
+  port: 8000
+
+route:
+  enabled: true
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# Wired into Secret ogx-chatbot-secrets (envFrom)
+config:
+  ogx:
+    baseUrl: "http://lsd-genai-playground-service.models-as-a-service.svc.cluster.local:8321"
+    apiKey: ""
+    model: "maas-openai/granite-3-2-8b-instruct"
+    embeddingModel: ""   # set per cluster — exact id from OgxServer /v1/models
+    embeddingDimension: "1024"  # BGE-large; set "0" to omit
+    embedBatchSize: "16"
+    vectorStoreName: "ogx-rag-demo"
+    vectorProviderId: "pgvector"
+    timeoutSeconds: "180"
+  chunking:
+    sizeTokens: "384"
+    overlapTokens: "64"
+  otel:
+    endpoint: "http://data-science-collector-collector.redhat-ods-monitoring.svc.cluster.local:4318"
+    protocol: "http/protobuf"
+    serviceName: "ogx-chatbot-api"
+  mlflow:
+    trackingUri: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"
+    insecureTls: "true"
+    experimentName: "ogx-chatbot"
+    # Usually same as namespace.name
+    workspace: "models-as-a-service"
+  evalhub:
+    baseUrl: ""
+    apiToken: ""
+    providers: "ragas,lm-evaluation-harness,garak"
+  # Live RAGAS-style scores via OGX (EvalHub cannot score live turns)
+  ragEval:
+    onChat: "true"
+    requireContexts: "true"
+  # Standalone NeMo Guardrails — /v1/guardrail/checks before OGX (not a MaaS swap)
+  guardrails:
+    enabled: "true"
+    baseUrl: "https://nemo-standalone-ogx-demo.apps.ocp-dwh-np.bajajlife.com"
+    apiToken: ""   # optional — only if NeMo Route requires Bearer
+    insecureTls: "true"
+    timeoutSeconds: "60"

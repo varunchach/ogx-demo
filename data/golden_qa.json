@@ -1,0 +1,26 @@
+{
+  "description": "Sample Q&A for EvalHub walkthrough. Run evaluations from the OpenShift AI Evaluations dashboard (EvalHub in redhat-ods-applications only).",
+  "model_env": "OGX_MODEL",
+  "items": [
+    {
+      "question": "What is the purpose of this demo application?",
+      "reference_answer": "It demonstrates wiring a RAG chatbot to OpenShift AI components: OGX, MLflow, EvalHub, and Tempo."
+    },
+    {
+      "question": "How does the app store document embeddings?",
+      "reference_answer": "Through the OGX Files and Vector Stores APIs; OgxServer indexes into its managed pgvector provider."
+    },
+    {
+      "question": "Does the application connect directly to Postgres?",
+      "reference_answer": "No. The app never opens Postgres; pgvector stays behind OgxServer."
+    },
+    {
+      "question": "Where should EvalHub be deployed?",
+      "reference_answer": "In the redhat-ods-applications namespace via the OpenShift AI dashboard."
+    },
+    {
+      "question": "Where do OpenTelemetry traces go?",
+      "reference_answer": "To the RHOAI data-science collector and then Tempo."
+    }
+  ]
+}

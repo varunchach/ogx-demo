@@ -1,0 +1,27 @@
+OpenShift AI 3.5 — OGX RAG Demo Policy Brief
+
+Purpose
+This document is a sample corpus for the ogx-chatbot RAG demonstration. It is not a production credit policy.
+
+How ingestion works on OpenShift AI 3.5
+1. The chatbot uploads documents to the OgxServer Files API (/v1/files).
+2. Files are attached to an OGX Vector Store (/v1/vector_stores/.../files).
+3. OgxServer performs chunking, embedding (BGE / configured embed model), and indexing into its managed pgvector provider.
+4. The chatbot never opens Postgres directly and does not need a NetworkPolicy to pgvector.
+
+How questions are answered
+1. The chatbot calls the OGX Responses API with the file_search tool (vector_store_ids).
+2. If Responses/file_search is unavailable, it falls back to chat completions.
+3. Each turn emits OpenTelemetry spans to the RHOAI data-science collector (Tempo) and optional MLflow runs.
+
+Platform components (must already exist)
+1. OgxServer (Gen AI playground) with MaaS LLM and embedding model wired.
+2. pgvector provided by the OGX RAG stack (behind OGX only).
+3. MLflow operator instance in redhat-ods-applications.
+4. EvalHub CR in redhat-ods-applications.
+5. OpenTelemetry data-science collector exporting to Tempo.
+
+Do not
+- Install MLflow, OGX, EvalHub, Tempo, Redis, or a second Postgres from this application.
+- Connect the app Deployment straight to the pgvector Service.
+- Load UI libraries from public CDNs (air-gapped clusters).

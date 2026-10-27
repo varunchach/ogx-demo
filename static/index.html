@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Credit Knowledge Assistant</title>
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <h1 class="brand">Knowledge Assistant</h1>
+          <p class="brand-sub">OpenShift AI · OGX RAG</p>
+        </div>
+      </div>
+      <div id="statusRow" class="status-row" aria-label="Platform status"></div>
+    </header>
+
+    <div class="workspace">
+      <aside class="rail">
+        <section class="rail-card">
+          <h2>Corpus</h2>
+          <p id="corpusMeta" class="muted">Loading…</p>
+          <label class="file-btn">
+            <input id="file" type="file" accept=".pdf,.txt,.md,.csv" />
+            Upload document
+          </label>
+          <p id="ingestInfo" class="muted small"></p>
+        </section>
+
+        <section class="rail-card">
+          <h2>Model</h2>
+          <p id="modelMeta" class="muted mono small">—</p>
+        </section>
+
+        <section class="rail-card">
+          <h2>Observability</h2>
+          <p id="obsHint" class="muted small">
+            Chat turns → Tempo · MLflow experiment
+          </p>
+          <div class="rail-actions">
+            <button id="evalBtn" class="btn ghost" type="button">Evaluations</button>
+          </div>
+          <p id="evalProviders" class="muted small"></p>
+        </section>
+
+        <p id="error" class="error" role="alert"></p>
+      </aside>
+
+      <div id="evalPanel" class="eval-panel" hidden>
+        <div class="eval-panel-inner">
+          <header class="eval-panel-head">
+            <h2>Evaluations</h2>
+            <button id="evalClose" class="btn ghost" type="button">Close</button>
+          </header>
+          <p class="muted small">
+            Scores the <strong>last RAG answer</strong> with reference-free metrics
+            (no golden document). Results go to <strong>MLflow</strong>.
+            Platform EvalHub (ragas / lm-eval / garak) stays in the OpenShift AI
+            dashboard — we do not open its Route here (avoids Unauthorized).
+          </p>
+          <p id="evalPlatformHint" class="muted small"></p>
+          <button id="evalRunBtn" class="btn primary" type="button">Score last answer</button>
+          <pre id="evalResult" class="eval-result mono small"></pre>
+        </div>
+      </div>
+
+      <main class="stage">
+        <div id="messages" class="messages"></div>
+        <div class="composer-bar">
+          <div class="composer">
+            <textarea id="input" rows="1" placeholder="Ask about your documents…"></textarea>
+            <button id="send" class="btn primary" type="button">Send</button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

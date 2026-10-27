@@ -1,0 +1,62 @@
+# Defaults only — empty cluster URLs. Fuse real values via Secret / env
+# from OpenShift AI 3.5 CRs (OGX, MLflow, EvalHub, Tempo collector).
+# Never install those components from this app.
+# RAG uses OGX Files + Vector Stores APIs (pgvector stays behind OgxServer).
+app:
+  name: ogx-chatbot
+  service_name: ogx-chatbot-api
+
+ogx:
+  base_url: ""                # OGX_BASE_URL — OgxServer svc :8321
+  api_key: ""                 # OGX_API_KEY
+  model: ""                   # OGX_MODEL — chat LLM from MaaS
+  embedding_model: ""         # OGX_EMBEDDING_MODEL — exact id from /v1/models
+  # BGE-large = 1024. Set 0 to omit (granite matryoshka can 400 on dim override).
+  embedding_dimension: 1024   # OGX_EMBEDDING_DIMENSION
+  # HF tokenizer for local chunk token counts (BGE-large). Empty → auto from embed model.
+  embedding_tokenizer: "BAAI/bge-large-en-v1.5"  # OGX_EMBEDDING_TOKENIZER
+  vector_store_id: ""         # OGX_VECTOR_STORE_ID (optional; else created by name)
+  vector_store_name: ogx-rag-demo
+  vector_provider_id: pgvector  # OGX_VECTOR_PROVIDER_ID — remote::pgvector in OGX
+  timeout_seconds: 180
+  embed_batch_size: 16          # OGX_EMBED_BATCH_SIZE — notebook-style batches
+  # On re-ingest: drop prior chunks for the same source filename
+  ingest_dedupe: true           # OGX_INGEST_DEDUPE
+
+chunking:
+  # Token-accurate RecursiveCharacterTextSplitter (HF BGE tokenizer length_function).
+  # Hard cap EMBED_MAX_TOKENS=500 (< model 512). On 400, split/retry that chunk.
+  chunk_size_tokens: 300
+  chunk_overlap_tokens: 64
+
+otel:
+  endpoint: ""          # OTEL_EXPORTER_OTLP_ENDPOINT — RHOAI data-science-collector
+  protocol: http/protobuf
+  service_name: ogx-chatbot-api
+
+mlflow:
+  tracking_uri: ""      # MLFLOW_TRACKING_URI
+  insecure_tls: true
+  experiment_name: ogx-chatbot
+  workspace: ""
+
+evalhub:
+  base_url: ""          # EVALHUB_BASE_URL — EvalHub in redhat-ods-applications only
+  api_token: ""
+  providers: "ragas,lm-evaluation-harness,garak"
+
+# Reference-free RAGAS-style metrics on each RAG chat turn (OGX LLM-as-judge).
+# EvalHub cannot score live turns — it is batch/dashboard only; use this instead.
+rag_eval:
+  on_chat: true           # RAG_EVAL_ON_CHAT — auto-score when retrieve_hits > 0
+  require_contexts: true  # skip judge if no retrieved contexts
+
+# Standalone NeMo Guardrails (TrustyAI NemoGuardrails CR) — checks BEFORE OGX.
+# Do NOT point OGX_BASE_URL / MaaS at NeMo. Use /v1/guardrail/checks only.
+guardrails:
+  # Runtime: NeMo is ON whenever GUARDRAILS_BASE_URL is non-empty (ENABLED flag ignored).
+  enabled: false
+  base_url: ""          # GUARDRAILS_BASE_URL — NeMo route (no /v1/guardrail/checks suffix)
+  api_token: ""         # GUARDRAILS_API_TOKEN — optional Bearer; omit if Route allows anonymous
+  timeout_seconds: 60
+  insecure_tls: true
