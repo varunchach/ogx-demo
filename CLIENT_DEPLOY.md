@@ -10,7 +10,7 @@
 | `src/`, `static/`, `Dockerfile` | Source (rebuild if you cannot pull Quay) |
 | `data/` | Sample doc + golden Q&A for demos |
 
-**Image (pre-built):** `quay.io/vraste/ogx-chatbot:1.3.0`
+**Image (pre-built):** `quay.io/vraste/ogx-chatbot:1.4.20`
 
 This package deploys **only the chatbot app**. Platform pieces must already exist on the cluster.
 
